@@ -1,0 +1,9 @@
+.DS_Store
+
+ctop
+ctop.app/
+*.png
+!icon.png
+!docs/screenshots/*.png
+go.work
+go.work.sum
