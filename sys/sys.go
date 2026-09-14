@@ -1,11 +1,3 @@
-// Package sys collects the machine telemetry ctop displays. It is deliberately
-// UI-agnostic: a Collector owns the polling goroutines and publishes immutable
-// snapshots on channels, so the UI layer never blocks on a syscall.
-//
-// Two cadences, because the costs differ by an order of magnitude (measured on
-// an M2 Pro): per-core CPU, memory and network counters are ~15ms and drive the
-// graphs, while enumerating ~575 processes with their fields is ~25ms and only
-// needs to keep up with the eye.
 package sys
 
 import (
@@ -24,8 +16,6 @@ import (
 	"github.com/shirou/gopsutil/v4/process"
 )
 
-// Static is the machine description, gathered once. host.Info costs ~60ms and
-// none of it changes while ctop runs.
 type Static struct {
 	Hostname string
 	Platform string // "darwin 26.5"
@@ -36,7 +26,6 @@ type Static struct {
 	BootTime time.Time
 }
 
-// Fast is the high-cadence sample: everything that feeds a graph.
 type Fast struct {
 	Time     time.Time
 	Uptime   time.Duration
@@ -48,7 +37,6 @@ type Fast struct {
 	MemWired, MemActive, MemComp uint64
 	SwapTotal, SwapUsed          uint64
 
-	// Rates in bytes/sec, derived from counter deltas.
 	NetRx, NetTx   float64
 	NetRxTotal     uint64
 	NetTxTotal     uint64
@@ -59,11 +47,11 @@ type Fast struct {
 	DiskWriteTotal uint64
 }
 
-// Slow is the low-cadence sample: the process table and filesystem usage.
 type Slow struct {
 	Time  time.Time
 	Procs []Proc
 	Disks []Disk
+	Temps []Temp
 }
 
 // Proc is one row of the process table. CPU is instantaneous (delta over the
@@ -280,7 +268,12 @@ func pollSlow(ctx context.Context, every time.Duration, out chan Slow) {
 		case <-ctx.Done():
 			return
 		case now := <-t.C:
-			publish(out, Slow{Time: now, Procs: scanProcs(prev, users, memTotal), Disks: readDisks()})
+			publish(out, Slow{
+				Time:  now,
+				Procs: scanProcs(prev, users, memTotal),
+				Disks: readDisks(),
+				Temps: readTemps(),
+			})
 		}
 	}
 }

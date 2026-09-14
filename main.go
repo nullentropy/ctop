@@ -136,6 +136,11 @@ type app struct {
 	diskRows  *caution.Node
 	diskMeter []*Meter
 
+	// thermal
+	tempHead  *caution.Node
+	tempRows  *caution.Node
+	tempMeter []*Meter
+
 	// processes
 	procMode    int
 	procHolder  *caution.Node
@@ -249,6 +254,7 @@ func (a *app) build() *caution.Node {
 				a.buildMem().Fill(1.15),
 				a.buildNet().Fill(1),
 				a.buildDisk().Fill(1),
+				a.buildThermal().Fill(1),
 			),
 			a.buildProcs(), // fill
 		),
@@ -447,6 +453,18 @@ func (a *app) buildDisk() *caution.Node {
 		a.diskRows,
 	)
 	return framed("disks", body)
+}
+
+func (a *app) buildThermal() *caution.Node {
+	a.tempHead = mono("--", 12, "$ink").Weight(600).
+		Tip("The hottest sensor in each zone")
+	a.tempRows = caution.VStack().Gap(3).Align("stretch")
+
+	body := caution.DockPanel().DockGap(6).Kids(
+		a.tempHead.Dock("top").H(16),
+		a.tempRows,
+	)
+	return framed("thermal", body)
 }
 
 func (a *app) buildProcs() *caution.Node {
@@ -748,6 +766,9 @@ func (a *app) applyFast(f sys.Fast) {
 		for _, m := range a.diskMeter {
 			m.Ease(1)
 		}
+		for _, m := range a.tempMeter {
+			m.Ease(1)
+		}
 	}
 
 	a.clock.SetText(f.Time.Format("15:04:05"))
@@ -771,6 +792,9 @@ func (a *app) animate(frac float64) {
 	for _, m := range a.diskMeter {
 		m.Ease(alpha)
 	}
+	for _, m := range a.tempMeter {
+		m.Ease(alpha)
+	}
 }
 
 func (a *app) refreshStatus() {
@@ -791,6 +815,7 @@ func (a *app) refreshStatus() {
 
 func (a *app) applySlow(s sys.Slow) {
 	a.setDisks(s.Disks)
+	a.setTemps(s.Temps)
 	if a.frozen {
 		return // reading a row is impossible if it moves out from under you
 	}
@@ -823,6 +848,71 @@ func (a *app) setDisks(disks []sys.Disk) {
 			}
 		}
 	}
+}
+
+func (a *app) setTemps(temps []sys.Temp) {
+	if len(temps) == 0 {
+		a.tempHead.SetText("no sensors")
+		a.tempRows.Clear()
+		a.tempMeter = a.tempMeter[:0]
+		return
+	}
+	a.tempHead.SetText(fmt.Sprintf("%.0f °C peak", temps[0].C))
+
+	rows := sys.GroupTemps(temps)
+	if len(rows) != len(a.tempMeter) {
+		a.tempRows.Clear()
+		a.tempMeter = a.tempMeter[:0]
+		for _, t := range rows {
+			m := NewMeter(0)
+			m.SetPal(a.pal)
+			a.tempMeter = append(a.tempMeter, m)
+			a.tempRows.Add(caution.Panel().Fixed(14).Kids(
+				mono(tempCaption(t), 10, "$inkDim").
+					Anchor(caution.A{Left: caution.Px(0), CenterY: caution.Px(0)}),
+				m.Node().Tip(tempTip(t)).Anchor(caution.A{
+					Left: caution.Px(tempLabelW), Right: caution.Px(0),
+					Top: caution.Px(3), Bottom: caution.Px(3),
+				}),
+			))
+		}
+	}
+	for i, t := range rows {
+		frac := tempFrac(t)
+		a.tempMeter[i].Set(frac)
+		a.tempMeter[i].Node().Tip(tempTip(t))
+		if row := nthChild(a.tempRows, i); row != nil {
+			if cap := nthChild(row, 0); cap != nil {
+				cap.SetText(tempCaption(t))
+				cap.SetColor(loadColor(frac))
+			}
+		}
+	}
+}
+
+func tempFrac(t sys.Temp) float64 {
+	ceiling := t.Crit
+	if ceiling <= 0 {
+		ceiling = t.High
+	}
+	if ceiling <= 0 {
+		ceiling = 100
+	}
+	return min(max(t.C/ceiling, 0), 1)
+}
+
+const tempLabelW = 76
+
+func tempCaption(t sys.Temp) string {
+	return fmt.Sprintf("%-4s  %.0f °C", t.Class, t.C)
+}
+
+func tempTip(t sys.Temp) string {
+	s := fmt.Sprintf("%s reads %.1f °C", t.Label, t.C)
+	if t.Crit > 0 {
+		s += fmt.Sprintf(", critical at %.0f °C", t.Crit)
+	}
+	return s + ". Sensor names come from the hardware; ctop groups them by what they sit on"
 }
 
 func diskTip(d sys.Disk) string {
@@ -947,6 +1037,9 @@ func (a *app) applyTheme(i int) {
 	a.netRxGraph.SetPal(t.Pal)
 	a.netTxGraph.SetPal(t.Pal)
 	for _, m := range a.diskMeter {
+		m.SetPal(t.Pal)
+	}
+	for _, m := range a.tempMeter {
 		m.SetPal(t.Pal)
 	}
 	a.persist()
