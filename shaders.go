@@ -91,7 +91,7 @@ func buildGraphFrag(n int) string {
 vec4 effect(vec2 uv) {
   vec2 px   = uv * u_res;
   // u_cell is the preferred dot pitch
-  float cs  = max(max(u_cell, 2.0), u_res.x / ` + fmt.Sprint(n) + `);
+  float cs  = max(max(u_cell, 2.0), u_res.x / ` + fmt.Sprint(n) + `.0);
   float cols = max(floor(u_res.x / cs), 1.0);
   float rows = max(floor(u_res.y / cs), 1.0);
 

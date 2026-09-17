@@ -393,7 +393,7 @@ func (a *app) buildCPU() *caution.Node {
 		caution.Panel().Dock("right").W(a.coresPaneWidth()).Kids(
 			mono("per-core", 9, "$inkFaint").
 				Anchor(caution.A{Left: caution.Px(2), Top: caution.Px(0)}),
-			a.cores.Node().Tip("One segmented meter per logical core; the whole bank is a single shader pane").
+			a.cores.Node().Tip("One segmented meter per logical core").
 				Anchor(caution.A{Left: caution.Px(0), Right: caution.Px(0), Top: caution.Px(14), Bottom: caution.Px(0)}),
 		),
 		caution.Panel().Kids(
