@@ -275,7 +275,6 @@ func (a *app) buildHeader() *caution.Node {
 	a.uptime = mono("up --", 11, "$inkDim")
 
 	a.themeSel = caution.Select(themeNames(), startTheme).W(126).H(26).
-		Tip("Switches design tokens and the shader phosphor together").
 		OnSelect(func(i int) { a.applyTheme(i) })
 
 	return caution.Panel().Clips().WindowDrag().Kids(
@@ -393,13 +392,12 @@ func (a *app) buildCPU() *caution.Node {
 		caution.Panel().Dock("right").W(a.coresPaneWidth()).Kids(
 			mono("per-core", 9, "$inkFaint").
 				Anchor(caution.A{Left: caution.Px(2), Top: caution.Px(0)}),
-			a.cores.Node().Tip("One segmented meter per logical core").
+			a.cores.Node().
 				Anchor(caution.A{Left: caution.Px(0), Right: caution.Px(0), Top: caution.Px(14), Bottom: caution.Px(0)}),
 		),
 		caution.Panel().Kids(
 			a.cpuGraph.Node().Anchor(fill()),
 			caution.Glass().Anchor(fill()).
-				Tip("Total CPU across all cores, newest at the right. Click or drag to pin a reading, click again to clear").
 				OnPick(func(x, _ float64, _ *caution.Node) { a.probeCPU(x, true) }).
 				OnDragTo(func(x, _ float64) { a.probeCPU(x, false) }),
 		),
@@ -417,11 +415,11 @@ func (a *app) buildMem() *caution.Node {
 
 	body := caution.DockPanel().DockGap(5).Kids(
 		a.memHead.Dock("top").H(17),
-		a.memMeter.Node().Tip("Physical memory in use").Dock("top").H(11),
+		a.memMeter.Node().Dock("top").H(11),
 		a.memBreak.Dock("top").H(13),
 		a.swapHead.Dock("top").H(13),
-		a.swapMeter.Node().Tip("Swap in use. Heavy swap alongside low available memory is real pressure").Dock("top").H(8),
-		a.memGraph.Node().Tip("Memory usage history, full scale = installed RAM"),
+		a.swapMeter.Node().Dock("top").H(8),
+		a.memGraph.Node(),
 	)
 	return framed("memory", body)
 }
@@ -436,9 +434,9 @@ func (a *app) buildNet() *caution.Node {
 		a.netHead.Dock("top").H(16),
 		a.netTotals.Dock("top").H(13),
 		mono("▼ rx", 9, "$inkFaint").Dock("top").H(11),
-		a.netRxGraph.Node().Tip("Autoscaling: the top of the graph is the recent peak, not a fixed rate").Dock("top").H(38),
+		a.netRxGraph.Node().Dock("top").H(38),
 		mono("▲ tx", 9, "$inkFaint").Dock("top").H(11),
-		a.netTxGraph.Node().Tip("Autoscaling: the top of the graph is the recent peak, not a fixed rate"),
+		a.netTxGraph.Node(),
 	)
 	return framed("network", body)
 }
@@ -456,8 +454,7 @@ func (a *app) buildDisk() *caution.Node {
 }
 
 func (a *app) buildThermal() *caution.Node {
-	a.tempHead = mono("--", 12, "$ink").Weight(600).
-		Tip("The hottest sensor in each zone")
+	a.tempHead = mono("--", 12, "$ink").Weight(600)
 	a.tempRows = caution.VStack().Gap(3).Align("stretch")
 
 	body := caution.DockPanel().DockGap(6).Kids(
@@ -473,14 +470,12 @@ func (a *app) buildProcs() *caution.Node {
 	a.reveal = map[string]bool{}
 
 	a.filterField = caution.TextField("").Placeholder("filter by name, user, or pid…").W(280).
-		Tip("Matches command, user, or a pid prefix. ⌘F jumps here, Escape reverts").
 		OnInput(func(v string) {
 			a.filter = v
 			a.refreshProcs()
 		})
 
 	a.modeSel = caution.Select([]string{"list", "tree"}, a.procMode).W(84).
-		Tip("Tree groups every process under its parent").
 		OnSelect(func(i int) { a.setProcMode(i) })
 
 	a.procHolder = caution.Panel()
@@ -833,14 +828,14 @@ func (a *app) setDisks(disks []sys.Disk) {
 			a.diskMeter = append(a.diskMeter, m)
 			a.diskRows.Add(caution.VStack().Gap(3).Align("stretch").Kids(
 				mono(diskCaption(d), 10, "$inkDim"),
-				m.Node().Tip(diskTip(d)).Fixed(8),
+				m.Node().Fixed(8),
 			))
 		}
 	}
 	for i, d := range disks {
 		if i < len(a.diskMeter) {
 			a.diskMeter[i].Set(d.Percent / 100)
-			a.diskMeter[i].Node().Tip(diskTip(d))
+			a.diskMeter[i].Node()
 		}
 		if row := nthChild(a.diskRows, i); row != nil {
 			if cap := nthChild(row, 0); cap != nil {
@@ -870,7 +865,7 @@ func (a *app) setTemps(temps []sys.Temp) {
 			a.tempRows.Add(caution.Panel().Fixed(14).Kids(
 				mono(tempCaption(t), 10, "$inkDim").
 					Anchor(caution.A{Left: caution.Px(0), CenterY: caution.Px(0)}),
-				m.Node().Tip(tempTip(t)).Anchor(caution.A{
+				m.Node().Anchor(caution.A{
 					Left: caution.Px(tempLabelW), Right: caution.Px(0),
 					Top: caution.Px(3), Bottom: caution.Px(3),
 				}),
@@ -880,7 +875,7 @@ func (a *app) setTemps(temps []sys.Temp) {
 	for i, t := range rows {
 		frac := tempFrac(t)
 		a.tempMeter[i].Set(frac)
-		a.tempMeter[i].Node().Tip(tempTip(t))
+		a.tempMeter[i].Node()
 		if row := nthChild(a.tempRows, i); row != nil {
 			if cap := nthChild(row, 0); cap != nil {
 				cap.SetText(tempCaption(t))
@@ -905,19 +900,6 @@ const tempLabelW = 76
 
 func tempCaption(t sys.Temp) string {
 	return fmt.Sprintf("%-4s  %.0f °C", t.Class, t.C)
-}
-
-func tempTip(t sys.Temp) string {
-	s := fmt.Sprintf("%s reads %.1f °C", t.Label, t.C)
-	if t.Crit > 0 {
-		s += fmt.Sprintf(", critical at %.0f °C", t.Crit)
-	}
-	return s + ". Sensor names come from the hardware; ctop groups them by what they sit on"
-}
-
-func diskTip(d sys.Disk) string {
-	return fmt.Sprintf("%s on %s (%s), %s free of %s",
-		d.Mount, d.Device, d.FSType, humanBytes(d.Total-d.Used), humanBytes(d.Total))
 }
 
 func diskCaption(d sys.Disk) string {
